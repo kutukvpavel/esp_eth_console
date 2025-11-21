@@ -60,6 +60,7 @@ namespace eth_console_vfs
 
     const static char *TAG = "eth_console_vfs";
     static FILE* vprintf_stdout = NULL;
+    static FILE* eth_stdin = NULL;
 
     typedef struct
     {
@@ -82,6 +83,7 @@ namespace eth_console_vfs
         ESP_RETURN_ON_ERROR(esp_eth_console_create(&s_vfseth.buffer_rx, &s_vfseth.buffer_tx), TAG, "Failed to initialize eth console");
         ESP_RETURN_ON_ERROR(_register(s_vfseth.buffer_rx, s_vfseth.buffer_tx, NULL), TAG, "Failed to register eth console in VFS");
         vprintf_stdout = fopen(s_vfseth.vfs_path, "w");
+        eth_stdin = fopen(s_vfseth.vfs_path, "r");
         assert(vprintf_stdout);
         return ESP_OK;
     }
@@ -439,6 +441,12 @@ namespace eth_console_vfs
         freopen(s_vfseth.vfs_path, "w", stdout);
         freopen(s_vfseth.vfs_path, "w", stderr);
         return ESP_OK;
+    }
+
+    void get_streams(FILE** input, FILE** output)
+    {
+        *input = eth_stdin;
+        *output = vprintf_stdout;
     }
 
     int vprintf(const char* fmt, va_list args)

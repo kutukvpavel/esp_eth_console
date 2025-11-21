@@ -60,6 +60,8 @@ namespace eth_console_vfs
     int vprintf(const char* fmt, va_list args);
 
     esp_err_t redirect_std_streams();
+
+    void get_streams(FILE** input, FILE** output);
 }
 
 #endif
