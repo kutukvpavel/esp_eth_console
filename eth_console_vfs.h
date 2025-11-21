@@ -62,6 +62,8 @@ namespace eth_console_vfs
     esp_err_t redirect_std_streams();
 
     void get_streams(FILE** input, FILE** output);
+
+    size_t get_available();
 }
 
 #endif

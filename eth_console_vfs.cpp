@@ -445,8 +445,20 @@ namespace eth_console_vfs
 
     void get_streams(FILE** input, FILE** output)
     {
+        assert(eth_stdin);
+        assert(vprintf_stdout);
+        
         *input = eth_stdin;
         *output = vprintf_stdout;
+    }
+
+    size_t get_available()
+    {
+        assert(s_vfseth.registered);
+
+        size_t available_size;
+        vRingbufferGetInfo(s_vfseth.buffer_rx, NULL, NULL, NULL, NULL, &available_size);
+        return available_size;
     }
 
     int vprintf(const char* fmt, va_list args)
