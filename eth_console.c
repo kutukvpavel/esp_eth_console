@@ -20,9 +20,27 @@
 #include <lwip/netdb.h>
 #include <stdbool.h>
 
-#define KEEPALIVE_IDLE              CONFIG_EXAMPLE_KEEPALIVE_IDLE
-#define KEEPALIVE_INTERVAL          CONFIG_EXAMPLE_KEEPALIVE_INTERVAL
-#define KEEPALIVE_COUNT             CONFIG_EXAMPLE_KEEPALIVE_COUNT
+#ifdef CONFIG_EXAMPLE_KEEPALIVE_IDLE
+    #define KEEPALIVE_IDLE              CONFIG_EXAMPLE_KEEPALIVE_IDLE
+#else
+    #define KEEPALIVE_IDLE              5
+#endif
+#ifdef CONFIG_EXAMPLE_KEEPALIVE_IDLE
+    #define KEEPALIVE_INTERVAL          CONFIG_EXAMPLE_KEEPALIVE_INTERVAL
+#else
+    #define KEEPALIVE_INTERVAL          5
+#endif
+#ifdef CONFIG_EXAMPLE_KEEPALIVE_IDLE
+    #define KEEPALIVE_COUNT             CONFIG_EXAMPLE_KEEPALIVE_COUNT
+#else
+    #define KEEPALIVE_COUNT             3
+#endif
+#ifndef CONFIG_ECHO_PORT
+    #define CONFIG_ECHO_PORT            3333
+#endif
+#ifndef CONFIG_CONSOLE_PORT
+    #define CONFIG_CONSOLE_PORT         3142
+#endif
 
 static const char *TAG = "eth_serial";
 RingbufHandle_t eth_console_ringbuffer_rx = NULL;
