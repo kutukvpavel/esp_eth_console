@@ -10,5 +10,6 @@
 _BEGIN_STD_C
 
 esp_err_t esp_eth_console_create(RingbufHandle_t* rx, RingbufHandle_t* tx);
+bool esp_eth_console_is_connected(void);
 
 _END_STD_C

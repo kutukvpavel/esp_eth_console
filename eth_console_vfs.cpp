@@ -138,9 +138,17 @@ namespace eth_console_vfs
         return 0;
     }
 
+    static BaseType_t eth_writechar(char c)
+    {
+        BaseType_t ret = pdFALSE;
+        while ((ret = xRingbufferSend(s_vfseth.buffer_tx, &c, sizeof(c), (s_vfseth.flags & O_NONBLOCK) ? 0 : pdMS_TO_TICKS(10))) != pdTRUE)
+            if (s_vfseth.flags & O_NONBLOCK) break;
+        return ret;
+    }
     static ssize_t eth_write(int fd, const void *data, size_t size)
     {
         FD_CHECK(fd, -1);
+        if (!esp_eth_console_is_connected()) return size;
         size_t written_sz = 0;
         const char *data_c = (const char *)data;
         _lock_acquire(&(s_vfseth.write_lock));
@@ -149,7 +157,7 @@ namespace eth_console_vfs
             char c = data_c[i];
             if (c != '\n')
             {
-                if (xRingbufferSend(s_vfseth.buffer_tx, &c, sizeof(c), (s_vfseth.flags & O_NONBLOCK) ? 0 : 1) == pdFALSE)
+                if (eth_writechar(c) == pdFALSE)
                 {
                     break; // can't write anymore
                 }
@@ -158,16 +166,16 @@ namespace eth_console_vfs
             {
                 if (s_vfseth.tx_mode == ESP_LINE_ENDINGS_CRLF || s_vfseth.tx_mode == ESP_LINE_ENDINGS_CR)
                 {
-                    char cr = '\r';
-                    if (xRingbufferSend(s_vfseth.buffer_tx, &cr, sizeof(cr), (s_vfseth.flags & O_NONBLOCK) ? 0 : 1) == pdFALSE)
+                    static const char cr = '\r';
+                    if (eth_writechar(cr) == pdFALSE)
                     {
                         break; // can't write anymore
                     }
                 }
                 if (s_vfseth.tx_mode == ESP_LINE_ENDINGS_CRLF || s_vfseth.tx_mode == ESP_LINE_ENDINGS_LF)
                 {
-                    char lf = '\n';
-                    if (xRingbufferSend(s_vfseth.buffer_tx, &lf, sizeof(lf), (s_vfseth.flags & O_NONBLOCK) ? 0 : 1) == pdFALSE)
+                    static const char lf = '\n';
+                    if (eth_writechar(lf) == pdFALSE)
                     {
                         break; // can't write anymore
                     }
@@ -327,11 +335,9 @@ namespace eth_console_vfs
         {
         case F_GETFL:
             result = s_vfseth.flags;
-            ESP_LOGI(TAG, "Flags get");
             break;
         case F_SETFL:
             s_vfseth.flags = arg;
-            ESP_LOGI(TAG, "Flags set");
             break;
         default:
             result = -1;

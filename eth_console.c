@@ -45,6 +45,8 @@
 static const char *TAG = "eth_serial";
 RingbufHandle_t eth_console_ringbuffer_rx = NULL;
 RingbufHandle_t eth_console_ringbuffer_tx = NULL;
+static SemaphoreHandle_t eth_console_ringbuffer_semaphore = NULL;
+static TaskHandle_t eth_console_devnull_task_handle = NULL;
 
 struct server_port;
 typedef void (*sock_handler_t)(int, struct server_port*);
@@ -55,33 +57,45 @@ struct server_port {
     uint16_t       port;
     sock_handler_t handler;
     char           buff[BUFF_SZ];
+    volatile bool  is_connected;
 };
 
 static void do_echo(int sock, struct server_port* srv)
 {
+    srv->is_connected = true;
     for (;;)
     {
         int len = recv(sock, srv->buff, BUFF_SZ, 0);
-        if (len > 0) {
+        if (len < 0) {
+            ESP_LOGE(TAG, "Error receiving (echo): %d", errno);
+            return;
+        } else if (len == 0) {
+            ESP_LOGW(TAG, "Connection closed (echo)");
+            return;
+        } else {
             // send() can return less bytes than supplied length.
             // Walk-around for robust implementation.
             char* ptr = srv->buff;
             while (len) {
                 int const written = send(sock, ptr, len, 0);
                 if (written < 0) {
-                    ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+                    ESP_LOGE(TAG, "Error sending (echo): %d", errno);
                     // Failed to retransmit, giving up
-                    break;
+                    return;
                 }
                 len -= written;
                 ptr += written;
             }
         }
     }
+    srv->is_connected = false;
 }
 
 static void do_console(int sock, struct server_port* srv)
 {
+    srv->is_connected = true;
+    while (xSemaphoreTake(eth_console_ringbuffer_semaphore, portMAX_DELAY) != pdTRUE);
+    vTaskSuspend(eth_console_devnull_task_handle);
     ESP_ERROR_CHECK(fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK));
     for (;;) {
         bool idle = true;
@@ -98,7 +112,7 @@ static void do_console(int sock, struct server_port* srv)
             while (size > 0) {
                 int const written = send(sock, ptr, size, 0);
                 if (written < 0) {
-                    ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+                    ESP_LOGW(TAG, "Error sending: %d", errno);
                     break;
                 }
                 size -= written;
@@ -113,8 +127,36 @@ static void do_console(int sock, struct server_port* srv)
             xRingbufferSend(eth_console_ringbuffer_rx, srv->buff, rx_len, portMAX_DELAY);
             idle = false;
         }
+        else if (rx_len == 0)
+        {
+            ESP_LOGD(TAG, "Connection closed");
+            break;
+        }
+        else
+        {
+            if (errno != EWOULDBLOCK) {
+                ESP_LOGW(TAG, "Error receiving: %d", errno);
+                break;
+            }
+        }
         if (idle)
             vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    srv->is_connected = false;
+    vTaskResume(eth_console_devnull_task_handle);
+    xSemaphoreGive(eth_console_ringbuffer_semaphore);
+}
+
+static void do_dev_null(void* arg)
+{
+    size_t sz;
+    while (1)
+    {
+        while (xSemaphoreTake(eth_console_ringbuffer_semaphore, portMAX_DELAY) != pdTRUE);
+        void *tx = xRingbufferReceive(eth_console_ringbuffer_tx, &sz, 0);
+        if (tx) vRingbufferReturnItem(eth_console_ringbuffer_semaphore, tx);
+        xSemaphoreGive(eth_console_ringbuffer_semaphore);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -193,8 +235,8 @@ CLEAN_UP:
     vTaskDelete(NULL);
 }
 
-static struct server_port echo_server   = {.port = CONFIG_ECHO_PORT,   .handler = do_echo};
-static struct server_port console_server = {.port = CONFIG_CONSOLE_PORT, .handler = do_console};
+static struct server_port echo_server   = {.port = CONFIG_ECHO_PORT,   .handler = do_echo, .is_connected = false};
+static struct server_port console_server = {.port = CONFIG_CONSOLE_PORT, .handler = do_console, .is_connected = false};
 
 esp_err_t esp_eth_console_create(RingbufHandle_t* rx, RingbufHandle_t* tx)
 {
@@ -206,11 +248,20 @@ esp_err_t esp_eth_console_create(RingbufHandle_t* rx, RingbufHandle_t* tx)
     if (!eth_console_ringbuffer_rx) return ESP_ERR_NO_MEM;
     eth_console_ringbuffer_tx = xRingbufferCreate(BUFF_SZ, RINGBUF_TYPE_BYTEBUF);
     if (!eth_console_ringbuffer_tx) return ESP_ERR_NO_MEM;
-    if (xTaskCreate(tcp_server_task, "echo_server",   4096, (void*)&echo_server,   5, NULL) != pdTRUE) return ESP_ERR_NO_MEM;
-    if (xTaskCreate(tcp_server_task, "console_server", 4096, (void*)&console_server, 5, NULL) != pdTRUE) return ESP_ERR_NO_MEM;
+    eth_console_ringbuffer_semaphore = xSemaphoreCreateBinary();
+    xSemaphoreGive(eth_console_ringbuffer_semaphore);
+    if (xTaskCreate(tcp_server_task, "echo_server",   4096, (void*)&echo_server,   1, NULL) != pdTRUE) return ESP_ERR_NO_MEM;
+    if (xTaskCreate(tcp_server_task, "console_server", 4096, (void*)&console_server, 1, NULL) != pdTRUE) return ESP_ERR_NO_MEM;
+    if (xTaskCreate(do_dev_null, "eth_dev_null", 2048, NULL, 1, &eth_console_devnull_task_handle) != pdTRUE) return ESP_ERR_NO_MEM;
+    assert(eth_console_devnull_task_handle);
     *rx = eth_console_ringbuffer_rx;
     *tx = eth_console_ringbuffer_tx;
 
     initialized = true;
     return ESP_OK;
+}
+
+bool esp_eth_console_is_connected(void)
+{
+    return console_server.is_connected;
 }
