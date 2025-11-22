@@ -202,9 +202,9 @@ esp_err_t esp_eth_console_create(RingbufHandle_t* rx, RingbufHandle_t* tx)
 
     if (initialized) return ESP_ERR_INVALID_STATE;
 
-    eth_console_ringbuffer_rx = xRingbufferCreate(BUFF_SZ, RINGBUF_TYPE_NOSPLIT);
+    eth_console_ringbuffer_rx = xRingbufferCreate(BUFF_SZ, RINGBUF_TYPE_BYTEBUF);
     if (!eth_console_ringbuffer_rx) return ESP_ERR_NO_MEM;
-    eth_console_ringbuffer_tx = xRingbufferCreate(BUFF_SZ, RINGBUF_TYPE_NOSPLIT);
+    eth_console_ringbuffer_tx = xRingbufferCreate(BUFF_SZ, RINGBUF_TYPE_BYTEBUF);
     if (!eth_console_ringbuffer_tx) return ESP_ERR_NO_MEM;
     if (xTaskCreate(tcp_server_task, "echo_server",   4096, (void*)&echo_server,   5, NULL) != pdTRUE) return ESP_ERR_NO_MEM;
     if (xTaskCreate(tcp_server_task, "console_server", 4096, (void*)&console_server, 5, NULL) != pdTRUE) return ESP_ERR_NO_MEM;

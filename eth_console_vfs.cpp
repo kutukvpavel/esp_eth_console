@@ -114,8 +114,8 @@ namespace eth_console_vfs
 
     static esp_err_t vfseth_init(RingbufHandle_t rx, RingbufHandle_t tx, char const *path)
     {
-        s_vfseth.buffer_rx = rx;
-        s_vfseth.buffer_tx = tx;
+        //s_vfseth.buffer_rx = rx;
+        //s_vfseth.buffer_tx = tx;
         s_vfseth.tx_mode = DEFAULT_TX_MODE;
         s_vfseth.rx_mode = DEFAULT_RX_MODE;
         s_vfseth.flags = 0;
@@ -149,7 +149,7 @@ namespace eth_console_vfs
             char c = data_c[i];
             if (c != '\n')
             {
-                if (xRingbufferSend(s_vfseth.buffer_tx, &c, sizeof(c), (s_vfseth.flags & O_NONBLOCK) ? 0 : portMAX_DELAY) == pdFALSE)
+                if (xRingbufferSend(s_vfseth.buffer_tx, &c, sizeof(c), (s_vfseth.flags & O_NONBLOCK) ? 0 : 1) == pdFALSE)
                 {
                     break; // can't write anymore
                 }
@@ -159,7 +159,7 @@ namespace eth_console_vfs
                 if (s_vfseth.tx_mode == ESP_LINE_ENDINGS_CRLF || s_vfseth.tx_mode == ESP_LINE_ENDINGS_CR)
                 {
                     char cr = '\r';
-                    if (xRingbufferSend(s_vfseth.buffer_tx, &cr, sizeof(cr), (s_vfseth.flags & O_NONBLOCK) ? 0 : portMAX_DELAY) == pdFALSE)
+                    if (xRingbufferSend(s_vfseth.buffer_tx, &cr, sizeof(cr), (s_vfseth.flags & O_NONBLOCK) ? 0 : 1) == pdFALSE)
                     {
                         break; // can't write anymore
                     }
@@ -167,7 +167,7 @@ namespace eth_console_vfs
                 if (s_vfseth.tx_mode == ESP_LINE_ENDINGS_CRLF || s_vfseth.tx_mode == ESP_LINE_ENDINGS_LF)
                 {
                     char lf = '\n';
-                    if (xRingbufferSend(s_vfseth.buffer_tx, &lf, sizeof(lf), (s_vfseth.flags & O_NONBLOCK) ? 0 : portMAX_DELAY) == pdFALSE)
+                    if (xRingbufferSend(s_vfseth.buffer_tx, &lf, sizeof(lf), (s_vfseth.flags & O_NONBLOCK) ? 0 : 1) == pdFALSE)
                     {
                         break; // can't write anymore
                     }
@@ -327,9 +327,11 @@ namespace eth_console_vfs
         {
         case F_GETFL:
             result = s_vfseth.flags;
+            ESP_LOGI(TAG, "Flags get");
             break;
         case F_SETFL:
             s_vfseth.flags = arg;
+            ESP_LOGI(TAG, "Flags set");
             break;
         default:
             result = -1;
