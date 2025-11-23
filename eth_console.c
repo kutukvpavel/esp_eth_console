@@ -73,6 +73,7 @@ static void do_echo(int sock, struct server_port* srv)
             ESP_LOGW(TAG, "Connection closed (echo)");
             return;
         } else {
+            ESP_LOGD(TAG, "Echo -> Eth  %d bytes", len);
             // send() can return less bytes than supplied length.
             // Walk-around for robust implementation.
             char* ptr = srv->buff;

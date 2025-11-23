@@ -445,9 +445,9 @@ namespace eth_console_vfs
     esp_err_t redirect_std_streams()
     {
         if (!s_vfseth.registered) return ESP_ERR_INVALID_STATE;
-        freopen(s_vfseth.vfs_path, "r", stdin);
-        freopen(s_vfseth.vfs_path, "w", stdout);
-        freopen(s_vfseth.vfs_path, "w", stderr);
+        stdin = eth_stdin;
+        stdout = vprintf_stdout;
+        stderr = vprintf_stdout;
         return ESP_OK;
     }
 
